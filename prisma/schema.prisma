@@ -1,0 +1,157 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id                                                    String              @id @default(uuid())
+  name                                                  String
+  email                                                 String              @unique
+  passwordHash                                          String
+  createdAt                                             DateTime            @default(now())
+  updatedAt                                             DateTime            @updatedAt
+  AdherenceLog                                          AdherenceLog[]
+  AuditLog                                              AuditLog[]
+  CaregiverRelation_CaregiverRelation_caregiverIdToUser CaregiverRelation[] @relation("CaregiverRelation_caregiverIdToUser")
+  CaregiverRelation_CaregiverRelation_patientIdToUser   CaregiverRelation[] @relation("CaregiverRelation_patientIdToUser")
+  devices                                               DeviceToken[]
+  MedicationEvent                                       MedicationEvent[]
+  MedicationPlan                                        MedicationPlan[]
+  NotificationJob                                       NotificationJob[]
+}
+
+model DeviceToken {
+  id        String   @id @default(uuid())
+  token     String
+  platform  String
+  userId    String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, token])
+}
+
+model MedicationPlan {
+  id              String               @id @default(uuid())
+  patientId       String
+  name            String
+  dosage          String
+  instructions    String?
+  isActive        Boolean              @default(true)
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+  User            User                 @relation(fields: [patientId], references: [id])
+  schedules       MedicationSchedule[]
+  AlertRule       AlertRule[]
+  MedicationBatch MedicationBatch[]
+  MedicationEvent MedicationEvent[]
+}
+
+model MedicationSchedule {
+  id               String         @id @default(uuid())
+  medicationPlanId String
+  timeOfDay        DateTime
+  timezone         String         @default("Asia/Manila")
+  repeatType       String
+  daysOfWeek       Int[]
+  isActive         Boolean        @default(true)
+  medicationPlan   MedicationPlan @relation(fields: [medicationPlanId], references: [id], onDelete: Cascade)
+}
+
+model AdherenceLog {
+  id            String   @id
+  patientId     String
+  date          DateTime
+  takenCount    Int
+  missedCount   Int
+  adherenceRate Float
+  createdAt     DateTime @default(now())
+  User          User     @relation(fields: [patientId], references: [id])
+}
+
+model AlertRule {
+  id               String         @id
+  medicationPlanId String
+  ruleType         String
+  threshold        Int
+  enabled          Boolean        @default(true)
+  MedicationPlan   MedicationPlan @relation(fields: [medicationPlanId], references: [id], onDelete: Cascade)
+}
+
+model AuditLog {
+  id         String   @id
+  userId     String
+  action     String
+  entityType String
+  entityId   String?
+  metadata   Json
+  createdAt  DateTime @default(now())
+  User       User     @relation(fields: [userId], references: [id])
+}
+
+model CaregiverRelation {
+  id                                       String   @id
+  caregiverId                              String
+  patientId                                String
+  role                                     String
+  permissions                              Json
+  createdAt                                DateTime @default(now())
+  User_CaregiverRelation_caregiverIdToUser User     @relation("CaregiverRelation_caregiverIdToUser", fields: [caregiverId], references: [id])
+  User_CaregiverRelation_patientIdToUser   User     @relation("CaregiverRelation_patientIdToUser", fields: [patientId], references: [id])
+}
+
+model InventoryTransaction {
+  id              String           @id @default(uuid())
+  batchId         String
+  eventId         String?
+  changeAmount    Int
+  reason          String
+  createdAt       DateTime         @default(now())
+  MedicationBatch MedicationBatch  @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  MedicationEvent MedicationEvent? @relation(fields: [eventId], references: [id], onDelete: Cascade)
+}
+
+model MedicationBatch {
+  id                   String                 @id @default(uuid())
+  medicationPlanId     String
+  quantityReceived     Int
+  remainingQuantity    Int
+  receivedAt           DateTime               @default(now())
+  expiryDate           DateTime?
+  MedicationPlan       MedicationPlan         @relation(fields: [medicationPlanId], references: [id], onDelete: Cascade)
+  InventoryTransaction InventoryTransaction[]
+}
+
+model MedicationEvent {
+  id                   String                 @id @default(uuid())
+  medicationPlanId     String
+  patientId            String
+  scheduleId           String?
+  scheduledTime        DateTime
+  status               String
+  takenAt              DateTime?
+  missedAt             DateTime?
+  quantityTaken        Int                    @default(1)
+  createdAt            DateTime               @default(now())
+  MedicationPlan       MedicationPlan         @relation(fields: [medicationPlanId], references: [id], onDelete: Cascade)
+  User                 User                   @relation(fields: [patientId], references: [id])
+  InventoryTransaction InventoryTransaction[]
+  NotificationJob      NotificationJob[]
+}
+
+model NotificationJob {
+  id              String           @id @default(uuid())
+  userId          String
+  eventId         String?
+  type            String
+  payload         Json
+  scheduledFor    DateTime
+  status          String
+  sentAt          DateTime?
+  createdAt       DateTime         @default(now())
+  MedicationEvent MedicationEvent? @relation(fields: [eventId], references: [id])
+  User            User             @relation(fields: [userId], references: [id])
+}
